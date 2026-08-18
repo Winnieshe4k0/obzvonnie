@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>База Обзвона</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='bg2' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23FFC107'/%3E%3Cstop offset='100%25' stop-color='%23FF9800'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23bg2)'/%3E%3Cpath d='M20 20a24 24 0 0 1 24 24' stroke='%231a1a2e' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='20' cy='20' r='5' fill='%231a1a2e'/%3E%3Ccircle cx='44' cy='44' r='5' fill='%231a1a2e'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@300;400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+  :root {
+    --main: #FFC107;
+    --main-dark: #E6A800;
+    --main-darker: #B8860B;
+    --main-light: #FFD54F;
+    --main-pale: #FFF8E1;
+    --main-ghost: #FFFBEF;
+    --accent: #FF3A1F;
+    --text: #1a1a2e;
+    --text-muted: #6b7599;
+    --border: #ece2c8;
+    --surface: #fdfbf5;
+    --success: #00b87a;
+    --warning: #f59e0b;
+    --shadow: 0 4px 24px rgba(184,134,11,0.12);
+    --shadow-lg: 0 12px 48px rgba(184,134,11,0.22);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; background: var(--surface); color: var(--text); min-height: 100vh; }
+
+  /* HEADER */
+  header {
+    background: linear-gradient(120deg, var(--main), var(--main-dark));
+    color: var(--text);
+    padding: 0 24px; height: 64px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: var(--shadow-lg);
+  }
+  .logo { font-family: 'Unbounded', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: .02em; display:flex; align-items:center; gap:10px; }
+  .logo-dot { width: 9px; height: 9px; background: var(--text); border-radius: 50%; }
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+  .btn {
+    border: none; border-radius: 8px; padding: 8px 16px;
+    font-family: 'Unbounded', sans-serif; font-size: 11px; font-weight: 600;
+    cursor: pointer; display: flex; align-items: center; gap: 6px;
+    transition: all .2s; white-space: nowrap;
+  }
+  .btn-dark { background: var(--text); color: var(--main-light); }
+  .btn-dark:hover { background: #2a2a45; transform: translateY(-1px); }
+  .btn-white { background: rgba(26,26,46,.12); color: var(--text); }
+  .btn-white:hover { background: rgba(26,26,46,.2); }
+  input[type=file] { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+  /* TABS */
+
+  .tab-btn {
+    padding: 12px 18px; border: none; background: none; cursor: pointer;
+    font-family: 'Unbounded', sans-serif; font-size: 11px; font-weight: 600;
+    color: var(--text-muted); white-space: nowrap; border-bottom: 3px solid transparent;
+    transition: all .15s;
+  }
+  .tab-btn:hover { color: var(--text); background: var(--main-ghost); }
+  .tab-btn.active { color: var(--main-darker); border-bottom-color: var(--main); }
+  .tab-count { display:inline-block; background: var(--main-pale); color: var(--main-darker); border-radius: 10px; padding: 1px 7px; font-size: 10px; margin-left: 5px; }
+  .tab-btn.active .tab-count { background: var(--main); color: var(--text); }
+
+  /* STATS */
+  .stats-bar { background: var(--text); color: white; padding: 10px 24px; display: flex; gap: 28px; flex-wrap: wrap; align-items: center; position: sticky; top: 64px; z-index: 90; }
+  .tabs-bar { background: white; border-bottom: 2px solid var(--main); padding: 0 24px; display: flex; gap: 4px; overflow-x: auto; position: sticky; top: 108px; z-index: 89; }
+  .toolbar { background: white; border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; position: sticky; top: 157px; z-index: 88; }
+  .result-count-bar { font-size: 12px; color: var(--text-muted); padding: 6px 24px 4px; background: var(--surface); position: sticky; top: 214px; z-index: 87; }
+  .stat-item { display: flex; align-items: center; gap: 8px; }
+  .stat-num { font-family: 'Unbounded', sans-serif; font-size: 18px; font-weight: 700; color: var(--main); }
+  .stat-label { font-size: 11px; color: rgba(255,255,255,.65); line-height: 1.3; }
+
+  /* TOOLBAR */
+  .search-wrap { position: relative; flex: 1; min-width: 200px; max-width: 320px; }
+  .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
+  .search-input { width: 100%; padding: 8px 12px 8px 34px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; font-family: 'Inter', sans-serif; outline: none; background: var(--surface); }
+  .search-input:focus { border-color: var(--main-dark); }
+  .filter-select { padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; font-family: 'Inter', sans-serif; outline: none; cursor: pointer; background: var(--surface); color: var(--text); }
+  .filter-select:focus { border-color: var(--main-dark); }
+
+  .result-count { font-size: 12px; color: var(--text-muted); padding: 8px 24px 0; }
+  .result-count strong { color: var(--text); }
+
+  /* TABLE */
+  .table-wrap { padding: 0 24px 24px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; background: white; border-radius: 0; box-shadow: var(--shadow); }
+  thead tr { background: var(--text); color: var(--main-light); }
+  thead th { padding: 12px 14px; text-align: left; font-family: 'Unbounded', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: .04em; white-space: nowrap; text-transform: uppercase; position: sticky; top: 0; z-index: 10; background: var(--text); }
+  tbody tr { border-bottom: 1px solid var(--main-ghost); transition: background .15s; }
+  tbody tr:nth-child(odd) { background: white; }
+  tbody tr:nth-child(even) { background: #fffdf5; }
+  tbody tr:hover { background: var(--main-pale) !important; }
+  td { padding: 10px 14px; font-size: 13px; vertical-align: top; max-width: 240px; }
+  .muted { color: #ccc; }
+
+  .company-cell { cursor: pointer; }
+  .company-name { font-weight: 600; font-size: 13.5px; color: var(--text); }
+  .company-name:hover { color: var(--main-darker); text-decoration: underline; }
+  .city-badge { display: inline-block; margin-top: 4px; font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 20px; background: var(--main-pale); color: var(--main-darker); }
+  .city-badge.spb { background: #e0f7fa; color: #0891b2; }
+  .city-badge.both { background: #f3e8ff; color: #7c3aed; }
+
+  .phone-row { display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; margin-bottom: 3px; white-space: nowrap; }
+  .phone-num { font-family: 'Courier New', monospace; color: var(--text); }
+  .phone-label { font-size: 10px; color: var(--text-muted); background: var(--main-ghost); border-radius: 8px; padding: 0 6px; }
+  .site-link { color: var(--main-darker); text-decoration: none; font-size: 12.5px; font-weight: 500; }
+  .site-link:hover { text-decoration: underline; }
+
+  .status-select { border: 1.5px solid transparent; border-radius: 20px; padding: 4px 10px; font-size: 11px; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; outline: none; appearance: none; -webkit-appearance: none; }
+
+  .inline-date { border: 1.5px solid var(--border); border-radius: 6px; padding: 4px 6px; font-size: 12px; font-family: 'Inter', sans-serif; background: var(--surface); color: var(--text); outline: none; }
+  .inline-date:focus { border-color: var(--main-dark); }
+  .connect-wrap { display: flex; align-items: center; gap: 6px; }
+  .due-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px rgba(255,58,31,.2); animation: pulse 1.6s infinite; flex-shrink: 0; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+
+  .notes-cell { font-size: 12px; color: #444; max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .notes-date { font-size: 10px; color: var(--text-muted); margin-right: 4px; }
+  .comment-count-badge { font-size: 10px; background: var(--main-pale); color: var(--main-darker); border-radius: 10px; padding: 1px 6px; margin-left: 4px; }
+
+  .row-actions { display: flex; gap: 4px; white-space: nowrap; }
+  .btn-icon { border: none; background: none; cursor: pointer; padding: 5px; border-radius: 6px; display: flex; align-items: center; color: var(--text-muted); }
+  .btn-icon:hover { background: var(--main-pale); color: var(--main-darker); }
+  .btn-icon.danger:hover { background: #fee2e2; color: var(--accent); }
+
+  /* MODAL */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(20,15,0,.5); backdrop-filter: blur(4px); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: white; border-radius: 16px; width: 100%; max-width: 640px; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg); animation: slideUp .25s ease; }
+  @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } }
+  .modal-header { background: linear-gradient(120deg, var(--main), var(--main-dark)); color: var(--text); padding: 18px 24px; border-radius: 16px 16px 0 0; display: flex; align-items: center; justify-content: space-between; }
+  .modal-title { font-family: 'Unbounded', sans-serif; font-size: 14px; font-weight: 600; }
+  .modal-close { background: rgba(26,26,46,.15); border: none; color: var(--text); width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+  .modal-close:hover { background: rgba(26,26,46,.28); }
+  .modal-body { padding: 22px 24px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 540px) { .form-grid { grid-template-columns: 1fr; } }
+  .field-full { grid-column: 1 / -1; }
+  .form-label { display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 5px; }
+  .form-input, .form-select, .form-textarea { width: 100%; padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; font-family: 'Inter', sans-serif; outline: none; background: var(--surface); color: var(--text); }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--main-dark); }
+  .form-textarea { resize: vertical; min-height: 70px; }
+  .form-section { margin-bottom: 18px; }
+  .form-section-title { font-family: 'Unbounded', sans-serif; font-size: 10px; font-weight: 600; color: var(--main-darker); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1.5px solid var(--main-pale); }
+  .modal-footer { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
+  .btn-cancel { padding: 10px 20px; border: 1.5px solid var(--border); background: white; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 13px; cursor: pointer; color: var(--text-muted); }
+  .btn-cancel:hover { border-color: var(--text-muted); color: var(--text); }
+  .btn-save { padding: 10px 22px; background: var(--text); color: var(--main-light); border: none; border-radius: 8px; font-family: 'Unbounded', sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; }
+  .btn-save:hover { background: #2a2a45; }
+
+  /* ── Phone entry block in modal ── */
+  .phone-entry {
+    background: var(--main-ghost);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 14px 12px;
+    margin-bottom: 12px;
+    position: relative;
+  }
+  .phone-entry-row-label {
+    font-size: 10px; font-weight: 600; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: .04em; margin-bottom: 5px;
+  }
+  .phone-prefix-wrap { display: flex; align-items: center; gap: 8px; }
+  .phone-prefix-badge {
+    background: var(--main-pale); color: var(--main-darker);
+    border: 1.5px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; font-size: 13px; font-weight: 700;
+    font-family: 'Courier New', monospace; white-space: nowrap; flex-shrink: 0;
+  }
+  .phone-entry .sep { height: 10px; }
+  .phone-remove-btn {
+    position: absolute; top: 10px; right: 10px;
+    background: none; border: none; cursor: pointer;
+    color: var(--text-muted); font-size: 18px; line-height: 1;
+    padding: 2px 6px; border-radius: 6px;
+  }
+  .phone-remove-btn:hover { color: var(--accent); background: rgba(255,58,31,.1); }
+  .btn-add-phone { background: white; border: 1.5px dashed var(--main-dark); color: var(--main-darker); border-radius: 8px; padding: 9px 16px; font-size: 12px; font-weight: 600; cursor: pointer; width: 100%; text-align: center; margin-top: 2px; }
+  .btn-add-phone:hover { background: var(--main-pale); }
+
+  .comment-item { background: var(--main-ghost); border-radius: 8px; padding: 9px 12px; border-left: 3px solid var(--main-dark); margin-bottom: 8px; }
+  .comment-date { font-size: 10px; font-weight: 600; color: var(--main-darker); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 3px; }
+  .comment-text { font-size: 13px; color: var(--text); line-height: 1.5; white-space: pre-line; }
+  .comment-del { float: right; background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 13px; }
+  .comment-del:hover { color: var(--accent); }
+
+  /* CONFIRM */
+  #confirmOverlay { position: fixed; inset: 0; background: rgba(20,15,0,.55); backdrop-filter: blur(4px); z-index: 2000; display: none; align-items: center; justify-content: center; }
+  #confirmOverlay.open { display: flex; }
+  #confirmBox { background: white; border-radius: 14px; padding: 30px 26px 22px; max-width: 380px; width: 90%; box-shadow: var(--shadow-lg); text-align: center; }
+  #confirmBox .confirm-icon { font-size: 34px; margin-bottom: 10px; }
+  #confirmBox h3 { font-family: 'Unbounded', sans-serif; font-size: 14px; margin-bottom: 8px; }
+  #confirmBox p { font-size: 13px; color: var(--text-muted); margin-bottom: 22px; }
+  #confirmBox .confirm-btns { display: flex; gap: 10px; justify-content: center; }
+
+  /* DUPLICATE COMPARISON MODAL */
+  #dupOverlay { position: fixed; inset: 0; background: rgba(10,8,0,.65); backdrop-filter: blur(6px); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 20px; }
+  #dupOverlay.open { display: flex; }
+  #dupBox { background: white; border-radius: 16px; width: 100%; max-width: 900px; max-height: 88vh; display: flex; flex-direction: column; box-shadow: 0 24px 80px rgba(0,0,0,.4); animation: slideUp .25s ease; overflow: hidden; }
+  .dup-modal-header { background: linear-gradient(120deg, #1a1a2e, #2a2a45); color: white; padding: 16px 22px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .dup-modal-title { font-family: 'Unbounded', sans-serif; font-size: 13px; font-weight: 600; }
+  .dup-modal-sub { font-size: 11px; color: rgba(255,255,255,.55); margin-top: 2px; }
+  .dup-modal-close { background: rgba(255,255,255,.15); border: none; color: white; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+  .dup-modal-close:hover { background: rgba(255,255,255,.28); }
+  .dup-cards-wrap { overflow-y: auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+  .dup-card { border: 1.5px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .dup-card.is-trigger { border-color: var(--main-dark); }
+  .dup-card-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--main-ghost); border-bottom: 1px solid var(--border); }
+  .dup-card.is-trigger .dup-card-head { background: var(--main-pale); }
+  .dup-card-num { font-family: 'Unbounded', sans-serif; font-size: 11px; font-weight: 700; color: var(--main-darker); }
+  .dup-card-match { font-size: 11px; color: var(--accent); font-weight: 600; }
+  .dup-card-body { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0; }
+  .dup-field { padding: 9px 14px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); min-width: 0; }
+  .dup-field:last-child { border-right: none; }
+  .dup-field-label { font-size: 9px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+  .dup-field-val { font-size: 12px; color: var(--text); word-break: break-word; line-height: 1.5; }
+  .dup-field-val.match-highlight { color: var(--accent); font-weight: 600; }
+  .dup-card-foot { padding: 8px 14px; display: flex; justify-content: flex-end; background: #fafafa; border-top: 1px solid var(--border); }
+  .btn-dup-delete { background: none; border: 1.5px solid #fca5a5; color: #b91c1c; border-radius: 7px; padding: 5px 14px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; }
+  .btn-dup-delete:hover { background: #fee2e2; }
+
+  /* BULK DELETE MODAL */
+  #bulkOverlay { position: fixed; inset: 0; background: rgba(20,15,0,.55); backdrop-filter: blur(4px); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 20px; }
+  #bulkOverlay.open { display: flex; }
+  #bulkBox { background: white; border-radius: 16px; width: 100%; max-width: 480px; box-shadow: var(--shadow-lg); overflow: hidden; animation: slideUp .2s ease; }
+  #bulkBox .bulk-header { background: linear-gradient(120deg, #c0392b, #96281b); color: white; padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; }
+  #bulkBox .bulk-title { font-family: 'Unbounded', sans-serif; font-size: 13px; font-weight: 600; }
+  #bulkBox .bulk-close { background: rgba(255,255,255,.2); border: none; color: white; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 17px; display: flex; align-items: center; justify-content: center; }
+  #bulkBox .bulk-close:hover { background: rgba(255,255,255,.35); }
+  #bulkBox .bulk-body { padding: 22px 22px 18px; }
+  .bulk-sheet-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+  .bulk-sheet-btn { padding: 7px 14px; border: 1.5px solid var(--border); border-radius: 20px; background: var(--surface); font-size: 12px; font-weight: 600; cursor: pointer; color: var(--text-muted); font-family: 'Inter', sans-serif; transition: all .15s; }
+  .bulk-sheet-btn:hover { border-color: #c0392b; color: #c0392b; }
+  .bulk-sheet-btn.active { background: #c0392b; border-color: #c0392b; color: white; }
+  .bulk-range-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .bulk-range-row label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+  .bulk-num-input { width: 70px; padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 14px; font-family: 'Unbounded', sans-serif; text-align: center; outline: none; }
+  .bulk-num-input:focus { border-color: #c0392b; }
+  .bulk-range-sep { font-size: 18px; color: var(--text-muted); }
+  .bulk-preview { background: #fff5f5; border: 1.5px solid #fecaca; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #991b1b; margin-bottom: 16px; min-height: 38px; line-height: 1.6; }
+  .bulk-footer { padding: 14px 22px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
+  .btn-bulk-confirm { padding: 10px 22px; background: #c0392b; color: white; border: none; border-radius: 8px; font-family: 'Unbounded', sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; transition: background .15s; }
+  .btn-bulk-confirm:hover { background: #96281b; }
+  .btn-bulk-confirm:disabled { background: #ccc; cursor: not-allowed; }
+  .dup-item { background: var(--main-ghost); border-left: 3px solid var(--accent); border-radius: 8px; padding: 9px 12px; margin-bottom: 8px; font-size: 13px; }
+  .dup-flag { cursor: pointer; color: var(--accent); font-size: 13px; }
+  .dup-flag:hover { transform: scale(1.15); display: inline-block; }
+  .cbtn-yes { background: var(--accent); color: white; border: none; border-radius: 8px; padding: 10px 26px; font-family: 'Unbounded', sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; }
+  .cbtn-no { background: #f0f0f0; color: var(--text); border: none; border-radius: 8px; padding: 10px 26px; font-family: 'Unbounded', sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--text); color: var(--main-light); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 500; box-shadow: var(--shadow-lg); z-index: 9999; display: none; }
+  .toast.show { display: block; }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+  .empty-state h3 { font-family: 'Unbounded', sans-serif; font-size: 14px; margin: 12px 0 6px; }
+
+  @media (max-width: 768px) {
+    header { padding: 0 10px; height: 56px; }
+    .logo { font-size: 12px; }
+    .btn { padding: 6px 10px; font-size: 10px; }
+    .tabs-bar { padding: 0 8px; }
+    .tab-btn { padding: 10px 12px; font-size: 10px; }
+    .stats-bar { padding: 8px 10px; gap: 14px; overflow-x: auto; flex-wrap: nowrap; }
+    .toolbar { padding: 8px 10px; flex-direction: column; align-items: stretch; }
+    .search-wrap { max-width: 100%; }
+    .table-wrap { padding: 8px 0; }
+    table { min-width: 680px; border-radius: 0; }
+    td, thead th { padding: 8px; font-size: 12px; }
+    .modal-overlay { padding: 0; align-items: flex-end; }
+    .modal { max-width: 100%; max-height: 95vh; border-radius: 16px 16px 0 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="logo-dot"></div><span>БАЗА ОБЗВОНА</span><span id="syncIcon" style="font-size:14px;margin-left:4px" title="Синхронизация...">🔄</span></div>
+  <div class="header-actions">
+    <button class="btn btn-white" onclick="document.getElementById('importInput').click()">⬆ Импорт</button>
+    <input type="file" id="importInput" accept=".xlsx,.xls,.csv" onchange="handleImportFile(event)">
+    <button class="btn btn-white" onclick="exportSheet()">⬇ Экспорт</button>
+    <button class="btn btn-white" style="color:#c0392b" onclick="openBulkDelete()">🗑 Удалить несколько</button>
+    <button class="btn btn-dark" onclick="openAddModal()">+ Добавить</button>
+  </div>
+</header>
+
+<div class="stats-bar" id="statsBar"></div>
+
+<div class="tabs-bar" id="tabsBar"></div>
+
+<div class="toolbar">
+  <div class="search-wrap">
+    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" class="search-input" placeholder="Поиск: компания, телефон, комментарий..." id="searchInput" oninput="renderTableDebounced()">
+  </div>
+  <select class="filter-select" id="filterCity" onchange="renderTable()">
+    <option value="">Все города</option>
+    <option value="МСК">МСК</option>
+    <option value="СПБ">СПБ</option>
+    <option value="МСК/СПБ">МСК/СПБ</option>
+  </select>
+  <select class="filter-select" id="filterStatus" onchange="renderTable()">
+    <option value="">Все статусы</option>
+  </select>
+  <select class="filter-select" id="filterConnect" onchange="renderTable()">
+    <option value="">Связаться: все</option>
+    <option value="due">Сегодня / просрочено</option>
+    <option value="future">Будущие</option>
+    <option value="none">Дата не указана</option>
+  </select>
+  <div id="resultCount" style="font-size:11px;color:var(--text-muted);white-space:nowrap;margin-left:auto;"></div>
+</div>
+
+<div class="table-wrap" style="overflow-y:auto;overflow-x:auto;">
+  <table id="mainTable">
+    <thead><tr id="tableHead"></tr></thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+  <div class="empty-state" id="emptyState" style="display:none">
+    <div style="font-size:44px">📞</div>
+    <h3>Партнёры не найдены</h3>
+    <p>Измените фильтры или добавьте нового партнёра на этот лист</p>
+  </div>
+  <div style="padding:14px 0 4px;text-align:center">
+    <button class="btn btn-dark" style="display:inline-flex" onclick="openAddModal()">+ Добавить</button>
+  </div>
+</div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">Новый партнёр</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="form-section">
+        <div class="form-section-title">🏢 Основная информация</div>
+        <div class="form-grid">
+          <div class="field-full">
+            <label class="form-label">Компания / название</label>
+            <input type="text" class="form-input" id="f_company" placeholder="Название организации">
+          </div>
+          <div class="field-full">
+            <label class="form-label">Тип партнёра</label>
+            <select class="form-select" id="f_sheet">
+              <option value="sk">Строительная компания</option>
+              <option value="uk">Управляющая компания</option>
+              <option value="design">Дизайн-студия</option>
+              <option value="realtor">Агентство недвижимости</option>
+              <option value="shop">Магазин</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Город</label>
+            <select class="form-select" id="f_city">
+              <option value="">—</option>
+              <option value="МСК">МСК</option>
+              <option value="СПБ">СПБ</option>
+              <option value="МСК/СПБ">МСК/СПБ</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Сайт</label>
+            <input type="text" class="form-input" id="f_site" placeholder="https://..." autocomplete="off">
+          </div>
+          <div>
+            <label class="form-label">Статус звонка</label>
+            <select class="form-select" id="f_status"></select>
+          </div>
+          <div>
+            <label class="form-label">Связаться (дата)</label>
+            <input type="date" class="form-input" id="f_connect">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">📞 Телефоны</div>
+        <div id="phoneRows"></div>
+        <button type="button" class="btn-add-phone" onclick="addPhoneRow()">+ Добавить ещё номер</button>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">💬 Комментарий (результат звонка)</div>
+        <div class="form-grid">
+          <div>
+            <label class="form-label">Дата контакта</label>
+            <input type="date" class="form-input" id="f_comment_date">
+          </div>
+          <div class="field-full">
+            <label class="form-label">Текст</label>
+            <textarea class="form-textarea" id="f_comment_text" placeholder="Что сказали, договорённости, итог звонка..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section" id="historySection" style="display:none">
+        <div class="form-section-title">🕐 История звонков</div>
+        <div id="commentHistory"></div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">Отмена</button>
+      <button class="btn-save" onclick="savePartner()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM DELETE -->
+<div id="confirmOverlay">
+  <div id="confirmBox">
+    <div class="confirm-icon">🗑️</div>
+    <h3>Точно удалить?</h3>
+    <p id="confirmText"></p>
+    <div class="confirm-btns">
+      <button class="cbtn-yes" onclick="confirmYes()">Да, удалить</button>
+      <button class="cbtn-no" onclick="confirmNo()">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- DUPLICATE COMPARISON MODAL -->
+<div id="dupOverlay">
+  <div id="dupBox">
+    <div class="dup-modal-header">
+      <div>
+        <div class="dup-modal-title">❗ Возможные дубликаты</div>
+        <div class="dup-modal-sub" id="dupModalSub"></div>
+      </div>
+      <button class="dup-modal-close" onclick="closeDup()">×</button>
+    </div>
+    <div class="dup-cards-wrap" id="dupCardsList"></div>
+  </div>
+</div>
+
+<!-- BULK DELETE MODAL -->
+<div id="bulkOverlay">
+  <div id="bulkBox">
+    <div class="bulk-header">
+      <div class="bulk-title">🗑 Удалить несколько строк</div>
+      <button class="bulk-close" onclick="closeBulkDelete()">×</button>
+    </div>
+    <div class="bulk-body">
+      <div class="form-label" style="margin-bottom:10px">Выберите лист</div>
+      <div class="bulk-sheet-btns" id="bulkSheetBtns"></div>
+      <div class="form-label" style="margin-bottom:8px">Диапазон строк (включительно)</div>
+      <div class="bulk-range-row">
+        <label>с</label>
+        <input type="number" class="bulk-num-input" id="bulkFrom" min="1" value="1" oninput="updateBulkPreview()">
+        <span class="bulk-range-sep">—</span>
+        <label>по</label>
+        <input type="number" class="bulk-num-input" id="bulkTo" min="1" value="1" oninput="updateBulkPreview()">
+      </div>
+      <div class="bulk-preview" id="bulkPreview">Выберите лист и диапазон</div>
+    </div>
+    <div class="bulk-footer">
+      <button class="btn-cancel" onclick="closeBulkDelete()">Отмена</button>
+      <button class="btn-bulk-confirm" id="bulkConfirmBtn" onclick="executeBulkDelete()" disabled>Удалить</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── SHEET DEFINITIONS ──────────────────────────────────
+const SHEET_DEFS = [
+  { key: 'sk',      label: 'Строительные компании' },
+  { key: 'uk',      label: 'Управляющие компании' },
+  { key: 'design',  label: 'Дизайн-студии' },
+  { key: 'realtor', label: 'Агентства недвижимости' },
+  { key: 'shop',    label: 'Магазины' },
+];
+const STATUSES = [
+  'Не берёт А','Не берёт Р',
+  'Не абонент А','Не абонент Р',
+  'Перезвонить А','Перезвонить Р',
+  'Поговорили А','Поговорили Р',
+  'Сбросили А','Сбросили Р',
+  'Не интересно А','Не интересно Р',
+  'Партнёр А','Партнёр Р',
+];
+const STATUS_STYLE = {
+  'Не берёт А':     { bg:'#FEF3C7', color:'#B45309' },
+  'Не берёт Р':     { bg:'#FEF3C7', color:'#7c3800' },
+  'Не абонент А':   { bg:'#F1F5F9', color:'#64748B' },
+  'Не абонент Р':   { bg:'#E2E8F0', color:'#475569' },
+  'Перезвонить А':  { bg:'#DBEAFE', color:'#1D4ED8' },
+  'Перезвонить Р':  { bg:'#C7D2FE', color:'#3730A3' },
+  'Поговорили А':   { bg:'#DCFCE7', color:'#15803D' },
+  'Поговорили Р':   { bg:'#BBF7D0', color:'#166534' },
+  'Сбросили А':     { bg:'#FEE2E2', color:'#B91C1C' },
+  'Сбросили Р':     { bg:'#FECACA', color:'#991B1B' },
+  'Не интересно А': { bg:'#F3F4F6', color:'#374151' },
+  'Не интересно Р': { bg:'#E5E7EB', color:'#1F2937' },
+  'Партнёр А':      { bg:'#FEF9C3', color:'#854D0E' },
+  'Партнёр Р':      { bg:'#FFEDD5', color:'#C2410C' },
+};
+
+let DATA = {};
+SHEET_DEFS.forEach(s => DATA[s.key] = []);
+let idCounter = 1;
+let activeSheet = 'sk';
+let editingId = null;
+let formPhones = [];
+let pendingDeleteId = null;
+
+// ─── LEGACY SEED DATA (imported from the old prospecting sheet) ─────
+const RAW_LEGACY = [
+  { type:'СК', company:'Демонтаж24', city:'МСК/СПБ', lpr:'Сергей', phone:'8 (981) 046-20-35\n8 (930) 333-18-43', lastcontact:'2026-03-17', notes:'Готовы работать / КП на почту и в телегу' },
+  { type:'СК', company:'Аура', city:'МСК', lpr:'Андрей', phone:'8 (926) 002-40-30', lastcontact:'2026-03-18', notes:'Ранее общался с Кириллом / готов передавать заявки в телеге' },
+  { type:'УК', company:'ЖСК «МАРЬИНО-5»', city:'МСК', lpr:'Антонина Кирилловна', phone:'8 (495) 349-71-60', lastcontact:'2026-03-26', notes:'Отвёз ей плакаты / дому 35 лет / хочет ремонт окон в подъезде' },
+  { type:'УК', company:'ТСЖ «ЗАГОРЬЕ 23-1»', city:'МСК', lpr:'Марина Анатольевна', phone:'8 (499) 725-87-08', lastcontact:'2026-03-18', notes:'Уже с кем-то сотрудничают / хочет русские проф бригады / свой телефон не даст' },
+  { type:'УК', company:'ООО «СК «НАГАТИНО»', city:'МСК', lpr:'Лариса', phone:'8 (915) 118-06-60', lastcontact:'2026-03-18', notes:'Общались в зуме / сейчас интерес только по мопам' },
+  { type:'СК', company:'Артарус', city:'МСК', lpr:'Хусейн', phone:'8 (969) 464-75-69', lastcontact:'2026-03-18', notes:'Готов сотрудничать / написал ему в телеграм' },
+  { type:'СК', company:'Анатомия ремонта', city:'СПБ', lpr:'Рашид', phone:'8 (965) 031-21-21', lastcontact:'2026-03-19', notes:'Общались в телеге / спросил по заявке на 80.000' },
+  { type:'design', company:'Бюро Контраст', city:'СПБ', lpr:'Антон', phone:'8 (914) 710-73-51', lastcontact:'2026-03-23', notes:'Звонил в колл центр по сотрудничеству / списались в максе' },
+  { type:'СК', company:'Строй Уют Дом', city:'МСК', lpr:'Илья', phone:'8 (911) 560-00-70', lastcontact:'2026-03-25', notes:'Делают в основном под ключ / ближе к лету обещали больше давать' },
+  { type:'shop', company:'Строй Маг', city:'МСК', lpr:'Тигран', phone:'8 (926) 054-68-68', lastcontact:'2026-03-25', notes:'Сам нам написал / 2 магазина в Москве / диалог в телеге' },
+  { type:'УК', company:'ЖСК «МАРЬИНО-1»', city:'МСК', lpr:'Наталья Геннадьевна', phone:'8 (495) 657-08-40\n8 (926) 388-07-55', lastcontact:'2026-04-01', notes:'Отвёз плакаты / созвониться через месяц' },
+  { type:'УК', company:'ЖСК «КРЫМ-1»', city:'МСК', lpr:'Ирина Николаевна', phone:'8 (903) 124-13-01', lastcontact:'2026-04-02', notes:'Будет давать мой номер жильцам / плакаты вешать не будет' },
+  { type:'УК', company:'ТСЖ «НАДЕЖДА»', city:'МСК', lpr:'Надежда Владимировна', phone:'8 (917) 557-50-42', lastcontact:'2026-04-08', notes:'Направил ей объявления / сама распечатала и повесила' },
+  { type:'УК', company:'ЖСК «КОМЕТА»', city:'МСК', lpr:'Сергей Владимирович', phone:'8 (495) 704-57-00', lastcontact:'2026-04-08', notes:'Контакт взял / будет передавать по возможности' },
+  { type:'СК', company:'MS-Строй', city:'СПБ', lpr:'Виталий', phone:'7 (904) 637-77-13', lastcontact:'2026-04-08', notes:'Занимается штукатуркой / планирует передать заявку' },
+  { type:'realtor', company:'Партнёр Виталия', city:'МСК', lpr:'Татьяна', phone:'7 (903) 012-69-55', lastcontact:'2026-04-15', notes:'Передала заявку' },
+  { type:'СК', company:'Служба Ремонта', city:'СПБ', lpr:'Антон Сергеевич', phone:'8 (901) 289-10-92', lastcontact:'2026-04-16', notes:'Делают от 600к / хочет в месяц 100+ / лояльный' },
+  { type:'СК', company:'mir', city:'МСК', lpr:'Андрей', phone:'7 (958) 272-44-70', lastcontact:'2026-04-15', notes:'Не пользуется ЛК / передаёт квартиры и технику' },
+  { type:'realtor', company:'imperium', city:'МСК', lpr:'Екатерина', phone:'7 (917) 552-54-93', lastcontact:'2026-04-15', notes:'Настраивает интеграцию себе на сайт' },
+  { type:'design', company:'mayer design', city:'МСК', lpr:'Юлия', phone:'7 (925) 426-51-18', lastcontact:'2026-04-16', notes:'Контакт в тг / хочет примеры работ и расценки' },
+  { type:'СК', company:'Честный ремонт', city:'СПБ', lpr:'Алексей', phone:'8 (965) 095-95-77', lastcontact:'2026-04-20', notes:'Работают от 300 / инфу в макс' },
+];
+
+function seedData() {
+  const map = { 'СК':'sk', 'УК':'uk', 'design':'design', 'realtor':'realtor', 'shop':'shop' };
+  RAW_LEGACY.forEach(r => {
+    const sheetKey = map[r.type] || r.type;
+    if (!DATA[sheetKey]) return;
+    const phones = (r.phone || '').split('\n').map(s => s.trim()).filter(Boolean).map(number => ({ number: cleanPhoneNumber(number), label: '' }));
+    if (phones.length && r.lpr) phones[0].label = r.lpr; // keep the contact name attached to the number, as requested
+    const comments = r.notes ? [{ date: r.lastcontact || '', text: r.notes }] : [];
+    DATA[sheetKey].push({
+      id: idCounter++,
+      company: r.company || '',
+      city: r.city || '',
+      site: '',
+      phones,
+      status: '',
+      connect: '',
+      lastcontact: r.lastcontact || '',
+      comments
+    });
+  });
+}
+
+// ─── FIREBASE ────────────────────────────────────────────
+firebase.initializeApp({ databaseURL: 'https://obzvonni-a0d67-default-rtdb.firebaseio.com/' });
+const db = firebase.database();
+let fbSaveTimeout = null;
+let fbReady = false;      // becomes true after first successful load from cloud
+let suppressFbEcho = false; // true while we are writing, to ignore our own echo
+
+function setSyncIcon(state) {
+  const el = document.getElementById('syncIcon');
+  if (!el) return;
+  if (state === 'ok')      { el.textContent = '☁️'; el.title = 'Синхронизировано с облаком'; }
+  else if (state === 'busy'){ el.textContent = '🔄'; el.title = 'Синхронизация...'; }
+  else                      { el.textContent = '⚠️'; el.title = 'Нет связи с облаком — работаем локально'; }
+}
+
+function fbSaveDebounced() {
+  setSyncIcon('busy');
+  clearTimeout(fbSaveTimeout);
+  fbSaveTimeout = setTimeout(() => {
+    suppressFbEcho = true;
+    db.ref('obzvon').set({ data: DATA, idCounter }).then(() => {
+      setSyncIcon('ok');
+      setTimeout(() => { suppressFbEcho = false; }, 600);
+    }).catch(e => { console.error('Firebase save error:', e); setSyncIcon('err'); suppressFbEcho = false; });
+  }, 400);
+}
+
+// ─── PERSISTENCE ────────────────────────────────────────
+function loadState() {
+  try {
+    const s = localStorage.getItem('obzvon_v1');
+    if (s) {
+      const parsed = JSON.parse(s);
+      DATA = parsed.data || DATA;
+      idCounter = parsed.idCounter || idCounter;
+      SHEET_DEFS.forEach(s => { if (!DATA[s.key]) DATA[s.key] = []; });
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+function applyRemoteData(remote) {
+  if (!remote || !remote.data) return;
+  DATA = remote.data;
+  idCounter = remote.idCounter || idCounter;
+  SHEET_DEFS.forEach(s => { if (!DATA[s.key]) DATA[s.key] = []; });
+  try { localStorage.setItem('obzvon_v1', JSON.stringify({ data: DATA, idCounter })); } catch(e) {}
+}
+
+function initFirebaseSync() {
+  db.ref('obzvon').once('value').then(snap => {
+    const remote = snap.val();
+    if (remote && remote.data) {
+      // Cloud already has data — it's the source of truth
+      applyRemoteData(remote);
+    } else {
+      // Nothing in the cloud yet — push what we have locally
+      suppressFbEcho = true;
+      db.ref('obzvon').set({ data: DATA, idCounter }).then(() => { setTimeout(() => { suppressFbEcho = false; }, 600); });
+    }
+    fbReady = true;
+    setSyncIcon('ok');
+    renderAll();
+
+    // Live updates from a colleague working at the same time
+    db.ref('obzvon').on('value', snap2 => {
+      if (!fbReady || suppressFbEcho) return;
+      const remote2 = snap2.val();
+      if (!remote2 || !remote2.data) return;
+      // Don't yank data out from under someone mid-edit in the modal
+      if (document.getElementById('modalOverlay').classList.contains('open')) return;
+      applyRemoteData(remote2);
+      renderAll();
+    });
+  }).catch(err => {
+    console.error('Firebase load error:', err);
+    setSyncIcon('err');
+    showToast('⚠️ Нет связи с облаком — работаем локально');
+  });
+}
+
+// ─── TABS ───────────────────────────────────────────────
+function renderTabs() {
+  const bar = document.getElementById('tabsBar');
+  bar.innerHTML = SHEET_DEFS.map(s => {
+    const count = DATA[s.key].length;
+    return `<button class="tab-btn ${s.key===activeSheet?'active':''}" onclick="switchSheet('${s.key}')">${s.label}<span class="tab-count">${count}</span></button>`;
+  }).join('');
+}
+function switchSheet(key) {
+  activeSheet = key;
+  document.getElementById('searchInput').value = '';
+  document.getElementById('filterCity').value = '';
+  document.getElementById('filterStatus').value = '';
+  document.getElementById('filterConnect').value = '';
+  renderAll();
+}
+
+// ─── STATS ──────────────────────────────────────────────
+function renderStats() {
+  const rows = DATA[activeSheet];
+  // Count statuses containing А (our manager) and Р (colleague)
+  const countA = rows.filter(p => p.status && p.status.endsWith(' А')).length;
+  const countR = rows.filter(p => p.status && p.status.endsWith(' Р')).length;
+  document.getElementById('statsBar').innerHTML = `
+    <div class="stat-item"><div class="stat-num">${rows.length}</div><div class="stat-label">Всего строк<br>на странице</div></div>
+    <div class="stat-item" style="border-left:1px solid rgba(255,255,255,.15);padding-left:24px"><div class="stat-num" style="color:#FFD54F">${countA}</div><div class="stat-label">Взаимодействий<br>А</div></div>
+    <div class="stat-item" style="border-left:1px solid rgba(255,255,255,.15);padding-left:24px"><div class="stat-num" style="color:#80cbc4">${countR}</div><div class="stat-label">Взаимодействий<br>Р</div></div>
+  `;
+  adjustScrollArea();
+}
+
+// Measure the actual sticky header stack height and set table-wrap height accordingly
+function adjustScrollArea() {
+  const header  = document.querySelector('header');
+  const stats   = document.getElementById('statsBar');
+  const tabs    = document.getElementById('tabsBar');
+  const toolbar = document.querySelector('.toolbar');
+  const wrap    = document.querySelector('.table-wrap');
+  if (!wrap) return;
+  const totalTop = (header  ? header.getBoundingClientRect().height  : 0)
+                 + (stats   ? stats.getBoundingClientRect().height   : 0)
+                 + (tabs    ? tabs.getBoundingClientRect().height    : 0)
+                 + (toolbar ? toolbar.getBoundingClientRect().height : 0);
+  wrap.style.height = `calc(100vh - ${Math.round(totalTop)}px)`;
+}
+
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+function fmtDate(d) { if (!d) return ''; const p = d.split('-'); return p.length===3 ? `${p[2]}.${p[1]}.${p[0].slice(2)}` : d; }
+function escapeHtml(s) { return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ─── STATUS FILTER OPTIONS ──────────────────────────────
+function initStatusFilter() {
+  const sel = document.getElementById('filterStatus');
+  sel.innerHTML = '<option value="">Все статусы</option>' + STATUSES.map(s => `<option value="${s}">${s}</option>`).join('');
+  const fsel = document.getElementById('f_status');
+  fsel.innerHTML = '<option value="">— не задан —</option>' + STATUSES.map(s => `<option value="${s}">${s}</option>`).join('');
+}
+
+// ─── DUPLICATE DETECTION ────────────────────────────────
+let lastDupMap = {};
+
+function normCompany(s) { return (s||'').toString().trim().toLowerCase().replace(/[«»"'ё]/g, m => m==='ё'?'е':'').replace(/\s+/g,' '); }
+function normSite(s) { return (s||'').toString().trim().toLowerCase().replace(/^https?:\/\//,'').replace(/^www\./,'').replace(/\/+$/,''); }
+function normPhoneDigits(s) { return (s||'').toString().replace(/\D/g,'').replace(/^8/,'7'); } // treat 8XXXXXXXXXX and 7XXXXXXXXXX as the same RU number
+
+function computeRowNumbers(sheetKey) {
+  const map = {};
+  DATA[sheetKey].forEach((p, idx) => { map[p.id] = idx + 1; });
+  return map;
+}
+
+// ─── SEARCH INDEX CACHE ──────────────────────────────────
+// Pre-built per-record search string, rebuilt only when DATA changes (not on every keystroke).
+let searchIndexCache = {};    // { sheetKey: Map<id, haystack> }
+let dupCacheKey = null;       // JSON fingerprint of sheet data → avoid recomputing dups when data unchanged
+
+function buildSearchIndex(sheetKey) {
+  const map = new Map();
+  (DATA[sheetKey] || []).forEach(p => {
+    const phonesText = (p.phones||[]).map(ph => ph.number + ' ' + ph.label).join(' ');
+    const commentsText = (p.comments||[]).map(c => c.text).join(' ');
+    map.set(p.id, [p.company, p.site, phonesText, commentsText, p.city, p.status].join(' ').toLowerCase());
+  });
+  searchIndexCache[sheetKey] = map;
+}
+
+function invalidateCache(sheetKey) {
+  delete searchIndexCache[sheetKey];
+  dupCacheKey = null;   // force dup recompute on next render
+  lastDupMap = {};
+}
+
+// Call after every data mutation
+function saveState() {
+  invalidateCache(activeSheet);
+  try { localStorage.setItem('obzvon_v1', JSON.stringify({ data: DATA, idCounter })); } catch(e) {}
+  fbSaveDebounced();
+}
+
+// ─── DEBOUNCE ────────────────────────────────────────────
+function debounce(fn, ms) {
+  let timer;
+  return function(...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), ms);
+  };
+}
+
+const renderTableDebounced = debounce(() => renderTable(), 120);
+
+function computeDuplicates(sheetKey) {
+  // Use a fingerprint of IDs+phones+site+company to skip recompute when data unchanged
+  const list = DATA[sheetKey] || [];
+  const fp = JSON.stringify(list.map(p => [p.id, p.company, p.site, (p.phones||[]).map(x=>x.number).join(',')]));
+  if (fp === dupCacheKey) return lastDupMap; // cache hit — skip O(n²)
+  dupCacheKey = fp;
+
+  const dupMap = {};
+  const add = (id, rowNum, company, type) => {
+    if (!dupMap[id]) dupMap[id] = [];
+    dupMap[id].push({ rowNum, company, type });
+  };
+  // Pre-compute normalised values once per item to avoid repeated calls inside inner loop
+  const normed = list.map(p => ({
+    id: p.id,
+    company: normCompany(p.company),
+    site: normSite(p.site),
+    phones: (p.phones||[]).map(x => normPhoneDigits(x.number)).filter(v => v.length >= 7),
+  }));
+
+  for (let i = 0; i < normed.length; i++) {
+    for (let j = i + 1; j < normed.length; j++) {
+      const a = normed[i], b = normed[j];
+      if (a.company && b.company && a.company !== '—' && a.company === b.company) {
+        add(list[i].id, j+1, list[j].company, 'company');
+        add(list[j].id, i+1, list[i].company, 'company');
+      }
+      if (a.site && b.site && a.site === b.site) {
+        add(list[i].id, j+1, list[j].company, 'site');
+        add(list[j].id, i+1, list[i].company, 'site');
+      }
+      if (a.phones.length && b.phones.length) {
+        // Use a Set for O(n) phone intersection instead of .some/.includes O(n²)
+        const setA = new Set(a.phones);
+        if (b.phones.some(p => setA.has(p))) {
+          add(list[i].id, j+1, list[j].company, 'phone');
+          add(list[j].id, i+1, list[i].company, 'phone');
+        }
+      }
+    }
+  }
+  return dupMap;
+}
+
+const DUP_TYPE_LABEL = { company: 'названию компании', site: 'сайту', phone: 'телефону' };
+
+function showDupInfo(triggerId) {
+  const dups = lastDupMap[triggerId] || [];
+  if (!dups.length) return;
+  const allIds = new Set([triggerId]);
+  dups.forEach(d => {
+    const partner = DATA[activeSheet][d.rowNum - 1];
+    if (partner) allIds.add(partner.id);
+  });
+  const matchTypes = new Set(dups.map(d => d.type));
+  const rowNumbers = {};
+  DATA[activeSheet].forEach((p, i) => { rowNumbers[p.id] = i + 1; });
+  document.getElementById('dupModalSub').textContent =
+    `${allIds.size} похожих строк · совпадение по: ${[...matchTypes].map(t => DUP_TYPE_LABEL[t]).join(', ')}`;
+  const cards = [...allIds].sort((a, b) => (rowNumbers[a]||0) - (rowNumbers[b]||0)).map(id => {
+    const p = DATA[activeSheet].find(x => x.id === id);
+    if (!p) return '';
+    const rn = rowNumbers[id];
+    const isTrigger = id === triggerId;
+    const phones = (p.phones||[]).map(ph => ph.number ? (fmtPhoneDisplay(ph.number)+(ph.label?` (${ph.label})`:'')) : '').filter(Boolean).join('\n') || '—';
+    const lastComment = p.comments && p.comments.length ? p.comments[p.comments.length-1].text : '—';
+    const hC = matchTypes.has('company') ? 'match-highlight' : '';
+    const hS = matchTypes.has('site')    ? 'match-highlight' : '';
+    const hP = matchTypes.has('phone')   ? 'match-highlight' : '';
+    const stStyle = STATUS_STYLE[p.status] || {bg:'#eee',color:'#666'};
+    return `<div class="dup-card ${isTrigger ? 'is-trigger' : ''}">
+      <div class="dup-card-head">
+        <div>
+          <span class="dup-card-num">Строка №${rn}</span>
+          ${isTrigger ? '<span style="margin-left:8px;font-size:10px;color:var(--main-darker);font-weight:600">◀ выбранная</span>' : ''}
+        </div>
+        ${p.status ? `<span class="dup-card-match" style="font-size:11px;padding:2px 8px;border-radius:20px;background:${stStyle.bg};color:${stStyle.color}">${p.status}</span>` : ''}
+      </div>
+      <div class="dup-card-body">
+        <div class="dup-field"><div class="dup-field-label">Компания</div><div class="dup-field-val ${hC}">${escapeHtml(p.company||'—')}</div></div>
+        <div class="dup-field"><div class="dup-field-label">Город</div><div class="dup-field-val">${escapeHtml(p.city||'—')}</div></div>
+        <div class="dup-field"><div class="dup-field-label">Телефон</div><div class="dup-field-val ${hP}" style="white-space:pre-line">${escapeHtml(phones)}</div></div>
+        <div class="dup-field"><div class="dup-field-label">Сайт</div><div class="dup-field-val ${hS}">${escapeHtml(p.site||'—')}</div></div>
+        <div class="dup-field" style="grid-column:1/-1"><div class="dup-field-label">Последний комментарий</div><div class="dup-field-val">${escapeHtml(lastComment)}</div></div>
+      </div>
+      <div class="dup-card-foot">
+        <button class="btn-dup-delete" onclick="deleteDupRow(${id})">🗑 Удалить эту строку</button>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('dupCardsList').innerHTML = cards;
+  document.getElementById('dupOverlay').classList.add('open');
+}
+
+function deleteDupRow(id) {
+  const idx = DATA[activeSheet].findIndex(x => x.id === id);
+  if (idx === -1) return;
+  const name = DATA[activeSheet][idx].company || 'строку';
+  DATA[activeSheet].splice(idx, 1);
+  invalidateCache(activeSheet);
+  saveState();
+  // Find another record that still has duplicates and re-open, or close
+  lastDupMap = computeDuplicates(activeSheet);
+  const stillDup = DATA[activeSheet].find(x => lastDupMap[x.id] && lastDupMap[x.id].length > 0);
+  if (stillDup) {
+    showDupInfo(stillDup.id);
+  } else {
+    closeDup();
+  }
+  renderAll();
+  showToast(`🗑 Удалено: «${name}»`);
+}
+
+function closeDup() { document.getElementById('dupOverlay').classList.remove('open'); }
+
+// ─── RENDER TABLE ────────────────────────────────────────
+let lastRenderedHead = '';
+
+function renderTable() {
+  const q       = document.getElementById('searchInput').value.toLowerCase().trim();
+  const fCity   = document.getElementById('filterCity').value;
+  const fStatus = document.getElementById('filterStatus').value;
+  const fConnect= document.getElementById('filterConnect').value;
+  const today   = todayStr();
+
+  // Search index: build once per sheet load, reuse on every keystroke
+  if (!searchIndexCache[activeSheet]) buildSearchIndex(activeSheet);
+  const hayMap = searchIndexCache[activeSheet];
+
+  // Duplicates: O(n²) but cached — recomputed only when data changes (fingerprint check inside)
+  lastDupMap = computeDuplicates(activeSheet);
+
+  // Row numbers: O(n)
+  const rowNumbers = {};
+  DATA[activeSheet].forEach((p, i) => { rowNumbers[p.id] = i + 1; });
+
+  // Filter rows
+  const rows = DATA[activeSheet].filter(p => {
+    if (fCity   && p.city   !== fCity)   return false;
+    if (fStatus && p.status !== fStatus) return false;
+    if (fConnect === 'due'    && !(p.connect && p.connect <= today)) return false;
+    if (fConnect === 'future' && !(p.connect && p.connect >  today)) return false;
+    if (fConnect === 'none'   && p.connect) return false;
+    if (q && !(hayMap.get(p.id) || '').includes(q)) return false;
+    return true;
+  });
+
+  // thead — only touch DOM if content actually changed
+  const newHead = '<th>№</th><th>Статус</th><th>Компания</th><th>Телефон</th><th>Сайт</th><th>Связаться</th><th>Посл. контакт</th><th>Комментарий</th><th></th>';
+  if (lastRenderedHead !== newHead) {
+    document.getElementById('tableHead').innerHTML = newHead;
+    lastRenderedHead = newHead;
+  }
+
+  const tbody = document.getElementById('tableBody');
+  const empty = document.getElementById('emptyState');
+  const table = document.getElementById('mainTable');
+  if (!rows.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    table.style.display = 'none';
+  } else {
+    empty.style.display = 'none';
+    table.style.display = '';
+    tbody.innerHTML = rows.map(p => renderRow(p, today, rowNumbers[p.id], lastDupMap[p.id])).join('');
+  }
+
+  document.getElementById('resultCount').innerHTML =
+    `<strong>${rows.length}</strong> из <strong>${DATA[activeSheet].length}</strong> на листе «${SHEET_DEFS.find(s=>s.key===activeSheet).label}»`;
+  renderStats();
+  // renderTabs() is NOT called here — tabs only need updating when data mutates
+}
+
+// Called after data mutations (add/delete/import/firebase sync)
+function renderAll() {
+  renderTabs();
+  renderTable();
+}
+
+function renderRow(p, today, rowNum, dups) {
+  // row number + duplicate warning
+  const numHtml = `<td style="text-align:center;color:var(--text-muted);font-weight:600;white-space:nowrap">
+      ${rowNum}${dups && dups.length ? ` <span class="dup-flag" title="Есть совпадения с другими строками" onclick="showDupInfo(${p.id})">❗</span>` : ''}
+    </td>`;
+
+  // status select
+  const st = STATUS_STYLE[p.status] || { bg:'#F5F5F5', color:'#888' };
+  const statusOpts = ['', ...STATUSES].map(s => `<option value="${s}" ${p.status===s?'selected':''}>${s||'— не задан —'}</option>`).join('');
+  const statusHtml = `<select class="status-select" style="background:${st.bg};color:${st.color}" onchange="updateField(${p.id},'status',this.value)">${statusOpts}</select>`;
+
+  // company + city badge
+  let cityClass = '';
+  if (p.city === 'СПБ') cityClass = 'spb'; else if (p.city === 'МСК/СПБ') cityClass = 'both';
+  const cityBadge = p.city ? `<div class="city-badge ${cityClass}">${p.city}</div>` : '';
+  const companyHtml = `<td class="company-cell" onclick="openEditModal(${p.id})">
+      <div class="company-name">${escapeHtml(p.company) || '—'}</div>${cityBadge}
+    </td>`;
+
+  // phones (strip any stray "1)"/"2." numbering that snuck into the number itself)
+  const phonesHtml = (p.phones && p.phones.length)
+    ? p.phones.map(ph => `<div class="phone-row"><span class="phone-num">${escapeHtml(fmtPhoneDisplay(ph.number))}</span>${ph.label?`<span class="phone-label">${escapeHtml(ph.label)}</span>`:''}</div>`).join('')
+    : '<span class="muted">—</span>';
+
+  // site
+  const siteHtml = (() => {
+    if (!p.site || !p.site.trim()) return '<span class="muted">—</span>';
+    const raw = p.site.trim();
+    const url = raw.startsWith('http') ? raw : 'https://' + raw;
+    const disp = raw.replace(/^https?:\/\//, '');
+    return `<a class="site-link" href="${url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(disp)}</a>`;
+  })();
+
+  // connect date
+  const isDue = p.connect && p.connect <= today;
+  const connectHtml = `<div class="connect-wrap">
+      ${isDue ? '<span class="due-dot" title="Пора связаться"></span>' : ''}
+      <input type="date" class="inline-date" value="${p.connect||''}" onchange="updateField(${p.id},'connect',this.value)">
+    </div>`;
+
+  const lastcontactHtml = `<input type="date" class="inline-date" value="${p.lastcontact||''}" onchange="updateField(${p.id},'lastcontact',this.value)">`;
+
+  // last comment
+  const comments = p.comments || [];
+  const last = comments[comments.length - 1];
+  const countBadge = comments.length > 1 ? `<span class="comment-count-badge">+${comments.length-1}</span>` : '';
+  const notesHtml = last
+    ? `<div class="notes-cell" title="${escapeHtml(last.text)}"><span class="notes-date">${fmtDate(last.date)}</span>${escapeHtml(last.text)}${countBadge}</div>`
+    : `<span class="muted">—</span>`;
+
+  return `<tr>
+    ${numHtml}
+    <td>${statusHtml}</td>
+    ${companyHtml}
+    <td>${phonesHtml}</td>
+    <td>${siteHtml}</td>
+    <td>${connectHtml}</td>
+    <td>${lastcontactHtml}</td>
+    <td>${notesHtml}</td>
+    <td><div class="row-actions">
+      <button class="btn-icon" onclick="openEditModal(${p.id})" title="Редактировать">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>
+      <button class="btn-icon danger" onclick="deletePartner(${p.id})" title="Удалить">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      </button>
+    </div></td>
+  </tr>`;
+}
+
+// ─── QUICK INLINE UPDATE (status / connect date / lastcontact) ─────
+function updateField(id, field, value) {
+  const p = DATA[activeSheet].find(x => x.id === id);
+  if (!p) return;
+  p[field] = value;
+  saveState();
+  renderAll();
+}
+
+// ─── MODAL: ADD / EDIT ──────────────────────────────────
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = '+ Новый партнёр';
+  document.getElementById('f_company').value = '';
+  document.getElementById('f_sheet').value = activeSheet;
+  document.getElementById('f_city').value = '';
+  document.getElementById('f_site').value = '';
+  document.getElementById('f_status').value = '';
+  document.getElementById('f_connect').value = '';
+  document.getElementById('f_comment_date').value = todayStr();
+  document.getElementById('f_comment_text').value = '';
+  formPhones = [{ number:'', label:'' }];
+  renderPhoneRows();
+  document.getElementById('historySection').style.display = 'none';
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function openEditModal(id) {
+  // Search across all sheets so that editing works from any tab
+  let foundSheet = activeSheet;
+  let p = DATA[activeSheet].find(x => x.id === id);
+  if (!p) {
+    for (const s of SHEET_DEFS) {
+      p = DATA[s.key].find(x => x.id === id);
+      if (p) { foundSheet = s.key; break; }
+    }
+  }
+  if (!p) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = `✏️ ${p.company || 'Партнёр'}`;
+  document.getElementById('f_company').value = p.company || '';
+  document.getElementById('f_sheet').value = foundSheet;
+  document.getElementById('f_city').value = p.city || '';
+  document.getElementById('f_site').value = p.site || '';
+  document.getElementById('f_status').value = p.status || '';
+  document.getElementById('f_connect').value = p.connect || '';
+  document.getElementById('f_comment_date').value = todayStr();
+  document.getElementById('f_comment_text').value = '';
+  formPhones = p.phones && p.phones.length ? JSON.parse(JSON.stringify(p.phones)) : [{ number:'', label:'' }];
+  renderPhoneRows();
+
+  const hist = document.getElementById('commentHistory');
+  const comments = (p.comments || []).slice().reverse();
+  if (comments.length) {
+    document.getElementById('historySection').style.display = 'block';
+    hist.innerHTML = comments.map((c, ri) => {
+      const realIdx = p.comments.length - 1 - ri;
+      return `<div class="comment-item">
+        <div class="comment-date">📅 ${fmtDate(c.date) || '—'} <button class="comment-del" onclick="deleteComment(${realIdx})">🗑</button></div>
+        <div class="comment-text">${escapeHtml(c.text)}</div>
+      </div>`;
+    }).join('');
+  } else {
+    document.getElementById('historySection').style.display = 'none';
+  }
+
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  editingId = null;
+}
+
+function deleteComment(idx) {
+  if (editingId === null) return;
+  let p = null;
+  for (const s of SHEET_DEFS) { p = DATA[s.key].find(x => x.id === editingId); if (p) break; }
+  if (!p || !p.comments) return;
+  p.comments.splice(idx, 1);
+  saveState();
+  openEditModal(editingId);
+  renderAll();
+  showToast('🗑 Запись удалена');
+}
+
+// ─── PHONE ROWS ──────────────────────────────────────────
+function renderPhoneRows() {
+  const wrap = document.getElementById('phoneRows');
+  wrap.innerHTML = formPhones.map((ph, i) => `
+    <div class="phone-entry">
+      ${formPhones.length > 1
+        ? `<button type="button" class="phone-remove-btn" onclick="removePhoneRow(${i})" title="Убрать номер">×</button>`
+        : ''}
+      <div class="phone-entry-row-label">Номер телефона</div>
+      <div class="phone-prefix-wrap">
+        <span class="phone-prefix-badge">+7</span>
+        <input type="text" class="form-input" placeholder="(XXX) XXX-XX-XX"
+          inputmode="tel" autocomplete="off" autocorrect="off" spellcheck="false"
+          data-lpignore="true" data-form-type="other"
+          value="${escapeHtml(ph.number)}"
+          oninput="formPhones[${i}].number=this.value">
+      </div>
+      <div class="sep"></div>
+      <div class="phone-entry-row-label">Чей номер</div>
+      <input type="text" class="form-input" placeholder="Например: Директор Андрей, колл-центр..."
+        autocomplete="off" autocorrect="off" spellcheck="false"
+        data-lpignore="true" data-form-type="other"
+        value="${escapeHtml(ph.label)}"
+        oninput="formPhones[${i}].label=this.value">
+    </div>
+  `).join('');
+}
+function addPhoneRow() { formPhones.push({ number:'', label:'' }); renderPhoneRows(); }
+function removePhoneRow(i) {
+  formPhones.splice(i, 1);
+  if (!formPhones.length) formPhones.push({ number:'', label:'' });
+  renderPhoneRows();
+}
+
+// Strips list-numbering ("1) ", "2. "), prefix (+7/8/7), spaces/dashes/brackets
+// and returns only the 10 significant digits (or the raw string if can't parse).
+function cleanPhoneNumber(str) {
+  let s = (str || '').toString();
+  s = s.replace(/^\s*\d{1,2}[\.\)]\s*/, ''); // strip "1) " / "2. " prefix
+  const digits = s.replace(/\D/g, '');
+  if (digits.length === 11 && (digits[0] === '7' || digits[0] === '8')) return digits.slice(1);
+  if (digits.length === 10) return digits;
+  return digits || s.trim(); // fallback: keep raw if unrecognisable
+}
+
+// Format 10 digits as (XXX) XXX-XX-XX for display
+function fmtPhoneDisplay(num) {
+  const d = (num || '').toString().replace(/\D/g, '');
+  if (d.length === 10) return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6,8)}-${d.slice(8,10)}`;
+  if (d.length === 11) { const t = d.slice(1); return `(${t.slice(0,3)}) ${t.slice(3,6)}-${t.slice(6,8)}-${t.slice(8,10)}`; }
+  return num; // return as-is if not parseable
+}
+
+// Split a phone cell that may contain multiple numbers separated by
+// newlines, semicolons, commas, or the word "и" between numbers.
+function splitPhones(raw) {
+  return (raw || '').toString()
+    .split(/[\n;]|(?<=\d)\s*,\s*(?=[\d\+\(])/)
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
+// ─── SAVE ────────────────────────────────────────────────
+function savePartner() {
+  const company = document.getElementById('f_company').value.trim();
+  if (!company) { showToast('⚠️ Укажите название компании'); return; }
+  const targetSheet = document.getElementById('f_sheet').value;
+  const city        = document.getElementById('f_city').value;
+  const site        = document.getElementById('f_site').value.trim();
+  const status      = document.getElementById('f_status').value;
+  const connect     = document.getElementById('f_connect').value;
+  const commentText = document.getElementById('f_comment_text').value.trim();
+  const commentDate = document.getElementById('f_comment_date').value || todayStr();
+  const phones = formPhones
+    .map(ph => ({ number: cleanPhoneNumber(ph.number), label: (ph.label || '').trim() }))
+    .filter(ph => ph.number);
+
+  if (editingId !== null) {
+    // Find which sheet currently holds this record
+    let srcSheet = null;
+    let p = null;
+    for (const s of SHEET_DEFS) {
+      p = DATA[s.key].find(x => x.id === editingId);
+      if (p) { srcSheet = s.key; break; }
+    }
+    if (p) {
+      Object.assign(p, { company, city, site, status, connect, phones });
+      if (commentText) {
+        if (!p.comments) p.comments = [];
+        p.comments.push({ date: commentDate, text: commentText });
+        p.lastcontact = commentDate;
+      }
+      // Move to different sheet if type changed
+      if (srcSheet && srcSheet !== targetSheet) {
+        DATA[srcSheet] = DATA[srcSheet].filter(x => x.id !== editingId);
+        DATA[targetSheet].push(p);
+        showToast(`✅ Перенесено на лист «${SHEET_DEFS.find(s=>s.key===targetSheet).label}»`);
+      } else {
+        showToast('✅ Партнёр обновлён');
+      }
+    }
+  } else {
+    DATA[targetSheet].push({
+      id: idCounter++, company, city, site, status, connect, phones,
+      lastcontact: commentText ? commentDate : '',
+      comments: commentText ? [{ date: commentDate, text: commentText }] : []
+    });
+    showToast(`✅ Добавлено на лист «${SHEET_DEFS.find(s=>s.key===targetSheet).label}»`);
+  }
+
+  // Switch active sheet to where the record ended up, so user sees it immediately
+  activeSheet = targetSheet;
+  saveState();
+  closeModal();
+  renderAll();
+}
+// ─── DELETE ──────────────────────────────────────────────
+function deletePartner(id) {
+  const p = DATA[activeSheet].find(x => x.id === id);
+  if (!p) return;
+  pendingDeleteId = id;
+  document.getElementById('confirmText').textContent = p.company || 'этого партнёра';
+  document.getElementById('confirmOverlay').classList.add('open');
+}
+function confirmYes() {
+  if (pendingDeleteId !== null) {
+    DATA[activeSheet] = DATA[activeSheet].filter(x => x.id !== pendingDeleteId);
+    pendingDeleteId = null;
+    saveState();
+    renderAll();
+    showToast('🗑️ Партнёр удалён');
+  }
+  document.getElementById('confirmOverlay').classList.remove('open');
+}
+function confirmNo() { pendingDeleteId = null; document.getElementById('confirmOverlay').classList.remove('open'); }
+
+// ─── TOAST ───────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ─── IMPORT (append, per active sheet) ──────────────────
+function handleImportFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+  showToast('⏳ Читаю файл...');
+  const reader = new FileReader();
+  reader.onerror = function() { showToast('⚠️ Не удалось прочитать файл'); };
+  reader.onload = function(ev) {
+    try {
+      const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array', cellDates: true });
+      if (!wb.SheetNames || !wb.SheetNames.length) { showToast('⚠️ В файле нет листов'); return; }
+      const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+      if (!json.length) { showToast('⚠️ Файл пустой или не распознан'); return; }
+      const added = importRows(json);
+      saveState();
+      renderAll();
+      showToast(added > 0
+        ? `✅ Добавлено ${added} строк на лист «${SHEET_DEFS.find(s=>s.key===activeSheet).label}»`
+        : '⚠️ В файле не нашлось ни одной заполненной строки');
+    } catch(err) {
+      console.error(err);
+      showToast('⚠️ Ошибка чтения файла: ' + (err.message || err));
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function isRowEmpty(row) {
+  return Object.values(row).every(v => v == null || String(v).trim() === '');
+}
+
+function importRows(rows) {
+  const headers = Object.keys(rows[0]);
+  const fm = {
+    company:     ['компания','название','наименование','организация','фирма','company','name','партнёр','партнер','клиент'],
+    city:        ['город','city','регион'],
+    site:        ['сайт','site','website','url','ссылка'],
+    phone:       ['телефон','phone','тел','тел.','номер','моб','mobile','телефоны'],
+    status:      ['статус','status'],
+    connect:     ['связаться','дата связи','next contact','связь','перезвонить'],
+    lastcontact: ['последний контакт','посл. контакт','lastcontact','дата контакта','дата'],
+    comment:     ['комментарий','коммент','заметки','notes','примечание','примечания',
+                  'договорённости','итог','результат','описание','инфо','info','comment','remarks']
+  };
+  const norm = h => String(h).toLowerCase().trim();
+  const cm = {};
+  for (const [k, aliases] of Object.entries(fm)) {
+    let found = headers.find(h => aliases.includes(norm(h)));
+    if (!found) found = headers.find(h => aliases.some(a => norm(h).includes(a) || a.includes(norm(h))));
+    if (found) cm[k] = found;
+  }
+  if (!cm.company) {
+    const used = new Set(Object.values(cm));
+    cm.company = headers.find(h => !used.has(h) && rows.some(r => r[h] != null && String(r[h]).trim() !== '' && isNaN(r[h]))) || headers[0];
+  }
+
+  let added = 0;
+  rows.forEach(row => {
+    if (isRowEmpty(row)) return;
+    const get = k => {
+      const h = cm[k]; if (!h) return '';
+      let v = row[h];
+      if (v == null) return '';
+      if (v instanceof Date) return v.toISOString().split('T')[0];
+      return String(v).trim();
+    };
+    const company = get('company') || '—';
+
+    // Phone: split on newlines / semicolons / commas between numbers
+    const phoneRaw = get('phone');
+    const phones = phoneRaw
+      ? splitPhones(phoneRaw).map(raw => ({ number: cleanPhoneNumber(raw), label: '' })).filter(p => p.number)
+      : [];
+
+    // Comment: keep full text, do not truncate
+    const commentText = get('comment');
+    const lastcontact = get('lastcontact');
+
+    DATA[activeSheet].push({
+      id: idCounter++,
+      company, city: get('city'), site: get('site'),
+      phones,
+      status: STATUSES.includes(get('status')) ? get('status') : '',
+      connect: get('connect'), lastcontact,
+      comments: commentText ? [{ date: lastcontact || todayStr(), text: commentText }] : []
+    });
+    added++;
+  });
+  return added;
+}
+
+// ─── EXPORT (current sheet only) ────────────────────────
+function exportSheet() {
+  const rows = DATA[activeSheet];
+  const headerRow = ['Компания','Город','Сайт','Телефон','Статус','Связаться','Последний контакт','Комментарий'];
+  const dataRows = rows.map(p => {
+    const phones = (p.phones||[]).map(ph => ph.label ? `${ph.number} (${ph.label})` : ph.number).join('\n');
+    const last = p.comments && p.comments.length ? p.comments[p.comments.length-1].text : '';
+    return [p.company||'', p.city||'', p.site||'', phones, p.status||'', p.connect||'', p.lastcontact||'', last];
+  });
+  const ws = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
+  ws['!cols'] = headerRow.map((h,i) => { let max=h.length; dataRows.forEach(r=>{ if(r[i] && String(r[i]).length>max) max=String(r[i]).length; }); return { wch: Math.min(max+3,50) }; });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, SHEET_DEFS.find(s=>s.key===activeSheet).label.slice(0,31));
+  const today = todayStr();
+  XLSX.writeFile(wb, `база_обзвона_${SHEET_DEFS.find(s=>s.key===activeSheet).key}_${today}.xlsx`);
+  showToast('✅ Файл скачан');
+}
+
+// ─── BULK DELETE ──────────────────────────────────────────
+let bulkSheet = null;
+
+function openBulkDelete() {
+  bulkSheet = activeSheet;
+  // Build sheet selector buttons
+  document.getElementById('bulkSheetBtns').innerHTML = SHEET_DEFS.map(s =>
+    `<button class="bulk-sheet-btn ${s.key === bulkSheet ? 'active' : ''}" onclick="setBulkSheet('${s.key}')">${s.label}<span style="margin-left:5px;opacity:.65">(${DATA[s.key].length})</span></button>`
+  ).join('');
+  const total = DATA[bulkSheet].length;
+  document.getElementById('bulkFrom').value = 1;
+  document.getElementById('bulkFrom').max = total;
+  document.getElementById('bulkTo').value = Math.min(1, total);
+  document.getElementById('bulkTo').max = total;
+  updateBulkPreview();
+  document.getElementById('bulkOverlay').classList.add('open');
+}
+
+function closeBulkDelete() {
+  document.getElementById('bulkOverlay').classList.remove('open');
+}
+
+function setBulkSheet(key) {
+  bulkSheet = key;
+  document.querySelectorAll('.bulk-sheet-btn').forEach(btn => btn.classList.toggle('active', btn.textContent.trim().startsWith(SHEET_DEFS.find(s=>s.key===key).label)));
+  const total = DATA[bulkSheet].length;
+  document.getElementById('bulkFrom').max = total;
+  document.getElementById('bulkTo').max = total;
+  if (parseInt(document.getElementById('bulkFrom').value) > total) document.getElementById('bulkFrom').value = total || 1;
+  if (parseInt(document.getElementById('bulkTo').value) > total) document.getElementById('bulkTo').value = total || 1;
+  updateBulkPreview();
+}
+
+function updateBulkPreview() {
+  const from = parseInt(document.getElementById('bulkFrom').value);
+  const to   = parseInt(document.getElementById('bulkTo').value);
+  const sheet = bulkSheet || activeSheet;
+  const rows  = DATA[sheet] || [];
+  const total = rows.length;
+  const previewEl = document.getElementById('bulkPreview');
+  const btnEl = document.getElementById('bulkConfirmBtn');
+
+  if (!total) {
+    previewEl.textContent = 'На этом листе нет строк.';
+    btnEl.disabled = true;
+    return;
+  }
+  if (isNaN(from) || isNaN(to) || from < 1 || to < 1) {
+    previewEl.textContent = 'Укажите корректный диапазон.';
+    btnEl.disabled = true;
+    return;
+  }
+  const realFrom = Math.max(1, Math.min(from, to));   // normalise so from ≤ to
+  const realTo   = Math.min(Math.max(from, to), total);
+  const count    = realTo - realFrom + 1;
+
+  // Show names of rows to be deleted (up to 5, then "...")
+  const preview = rows.slice(realFrom - 1, realTo).map((p, i) => `${realFrom + i}. ${p.company || '—'}`);
+  const shown = preview.slice(0, 5).join('\n');
+  const extra = preview.length > 5 ? `\n...и ещё ${preview.length - 5}` : '';
+  previewEl.style.whiteSpace = 'pre-line';
+  previewEl.textContent = `Будет удалено ${count} строк:\n${shown}${extra}`;
+  btnEl.disabled = false;
+}
+
+function executeBulkDelete() {
+  const from = parseInt(document.getElementById('bulkFrom').value);
+  const to   = parseInt(document.getElementById('bulkTo').value);
+  const sheet = bulkSheet || activeSheet;
+  const rows  = DATA[sheet];
+  if (!rows || !rows.length) return;
+  const realFrom = Math.max(1, Math.min(from, to)) - 1;  // 0-based
+  const realTo   = Math.min(Math.max(from, to), rows.length);
+  const count    = realTo - realFrom;
+  DATA[sheet].splice(realFrom, count);
+  saveState();
+  closeBulkDelete();
+  if (activeSheet !== sheet) { activeSheet = sheet; }
+  renderAll();
+  showToast(`🗑 Удалено ${count} строк с листа «${SHEET_DEFS.find(s=>s.key===sheet).label}»`);
+}
+
+// ─── HOTKEYS ─────────────────────────────────────────────
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    if (document.getElementById('confirmOverlay').classList.contains('open')) { confirmNo(); return; }
+    if (document.getElementById('dupOverlay').classList.contains('open')) { closeDup(); return; }
+    if (document.getElementById('bulkOverlay').classList.contains('open')) { closeBulkDelete(); return; }
+    if (document.getElementById('modalOverlay').classList.contains('open')) { closeModal(); return; }
+  }
+});
+// Партнёрская карточка закрывается ТОЛЬКО через ×, «Отмена», savePartner() или Escape — клик по фону НЕ закрывает.
+document.getElementById('dupOverlay').addEventListener('click', function(e) { if (e.target === this) closeDup(); });
+document.getElementById('bulkOverlay').addEventListener('click', function(e) { if (e.target === this) closeBulkDelete(); });
+
+// ─── INIT ────────────────────────────────────────────────
+initStatusFilter();
+const hadSaved = loadState();
+if (!hadSaved) seedData();
+renderAll();
+initFirebaseSync();
+window.addEventListener('resize', adjustScrollArea);
+</script>
+</body>
+</html>
